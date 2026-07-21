@@ -1,378 +1,405 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Trophy, CheckCircle2, Plus, 
-  Home, BarChart2, BookOpen, 
-  Dumbbell, Sparkles, Wrench, Coins, Zap, Trash2
+  Trophy, Zap, Shield, Target, Award, Clock, Play, Pause, 
+  RotateCcw, CheckCircle2, Plus, Edit2, Download, Upload, 
+  Settings, Flame, Compass, Sparkles, Smartphone, Monitor
 } from 'lucide-react';
 
-interface Task {
-  id: string;
-  title: string;
-  category: 'wisdom' | 'body' | 'creativity' | 'skill' | 'wealth' | 'spirit';
-  worldId: number;
-  hours: number;
-  targetHours: number;
-  completed: boolean;
-  date: string;
-}
+// 像素风格主题配色与基础常量
+const COLS = 10;
+const ROWS = 10;
+const TOTAL_BLOCKS = COLS * ROWS; // 100网格
 
-const WORLD_NAMES: Record<number, string> = {
-  1: '深度阅读与学识构建',
-  2: '核心体能与力量特训',
-  3: '全栈创意与AI工程',
-  4: '尖端技巧与实战演练',
-  5: '财富认知与复利增长',
-  6: '内在精神与心流重塑'
-};
-
-const CATEGORY_LABELS: Record<string, { label: string; color: string; icon: any }> = {
-  wisdom: { label: '智慧', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: BookOpen },
-  body: { label: '体力', color: 'bg-amber-100 text-amber-800 border-amber-300', icon: Dumbbell },
-  creativity: { label: '创造力', color: 'bg-purple-100 text-purple-800 border-purple-300', icon: Sparkles },
-  skill: { label: '技巧', color: 'bg-blue-100 text-blue-800 border-blue-300', icon: Wrench },
-  wealth: { label: '财富', color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Coins },
-  spirit: { label: '精神力', color: 'bg-rose-100 text-rose-800 border-rose-300', icon: Zap },
-};
-
-export default function App() {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('super_100_tasks');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    return [
-      { id: '1', title: '精读技术专著与文献', category: 'wisdom', worldId: 1, hours: 18, targetHours: 100, completed: false, date: '2026-05-01' },
-      { id: '2', title: '核心体能与力量特训', category: 'body', worldId: 2, hours: 45, targetHours: 100, completed: false, date: '2026-05-02' }
-    ];
+export default function PixelRPGTracker() {
+  // --- 状态管理 ---
+  const [completedBlocks, setCompletedBlocks] = useState(() => {
+    const saved = localStorage.getItem('rpg_completed_blocks');
+    return saved ? JSON.parse(saved) : Array(TOTAL_BLOCKS).fill(false);
   });
 
-  const [activeTab, setActiveTab] = useState<'home' | 'add' | 'stats'>('home');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'ongoing' | 'completed'>('all');
+  const [projectTitle, setProjectTitle] = useState(() => {
+    return localStorage.getItem('rpg_project_title') || '100小时像素逆袭计划';
+  });
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(projectTitle);
 
-  const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState<keyof typeof CATEGORY_LABELS>('wisdom');
-  const [newWorldId, setNewWorldId] = useState<number>(1);
-  const [newHours, setNewHours] = useState<number>(2);
+  // 雷达六维属性
+  const [attributes, setAttributes] = useState(() => {
+    const saved = localStorage.getItem('rpg_attributes');
+    return saved ? JSON.parse(saved) : {
+      strength: 12,
+      intelligence: 15,
+      agility: 10,
+      vitality: 14,
+      creativity: 13,
+      spirit: 11
+    };
+  });
+
+  // 计时器状态
+  const [isActive, setIsActive] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('intelligence');
+  
+  // 导入导出弹窗状态
+  const [showDataModal, setShowDataModal] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const fileInputRef = useRef(null);
+
+  // --- 存储同步 ---
+  useEffect(() => {
+    localStorage.setItem('rpg_completed_blocks', JSON.stringify(completedBlocks));
+  }, [completedBlocks]);
 
   useEffect(() => {
-    localStorage.setItem('super_100_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    localStorage.setItem('rpg_project_title', projectTitle);
+  }, [projectTitle]);
 
-  const totalHours = tasks.reduce((acc, t) => acc + (Number(t.hours) || 0), 0);
-  const currentLevel = Math.floor(totalHours / 50) + 1;
-  const currentExp = totalHours % 50;
+  useEffect(() => {
+    localStorage.setItem('rpg_attributes', JSON.stringify(attributes));
+  }, [attributes]);
 
-  const handleAddTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
+  // --- 计时器逻辑 ---
+  useEffect(() => {
+    let interval = null;
+    if (isActive) {
+      interval = setInterval(() => {
+        setSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isActive]);
 
-    const newTask: Task = {
-      id: Date.now().toString(),
-      title: newTitle.trim(),
-      category: newCategory,
-      worldId: Number(newWorldId),
-      hours: Number(newHours),
-      targetHours: 100,
-      completed: false,
-      date: new Date().toISOString().split('T')[0]
+  const formatTime = (totalSeconds) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // --- 打卡网格交互 ---
+  const handleBlockClick = (index) => {
+    const updated = [...completedBlocks];
+    const isNowCompleted = !updated[index];
+    updated[index] = isNowCompleted;
+    setCompletedBlocks(updated);
+
+    // 联动增加对应属性
+    if (isNowCompleted) {
+      setAttributes(prev => ({
+        ...prev,
+        [selectedCategory]: prev[selectedCategory] + 1
+      }));
+    } else {
+      setAttributes(prev => ({
+        ...prev,
+        [selectedCategory]: Math.max(0, prev[selectedCategory] - 1)
+      }));
+    }
+  };
+
+  // --- 数据导入导出逻辑 ---
+  const handleExportData = () => {
+    const exportData = {
+      projectTitle,
+      completedBlocks,
+      attributes,
+      exportDate: new Date().toISOString()
     };
-
-    setTasks([newTask, ...tasks]);
-    setNewTitle('');
-    setActiveTab('home');
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `rpg_tracker_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (parsed.completedBlocks && parsed.attributes) {
+          setCompletedBlocks(parsed.completedBlocks);
+          setAttributes(parsed.attributes);
+          if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
+          alert('数据导入成功！');
+          setShowDataModal(false);
+        } else {
+          alert('文件格式错误：缺少必要的数据字段。');
+        }
+      } catch (err) {
+        alert('解析 JSON 文件失败，请检查文件格式。');
+      }
+    };
+    reader.readAsText(file);
   };
 
-  const deleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const handleImportJsonText = () => {
+    try {
+      const parsed = JSON.parse(importJsonText);
+      if (parsed.completedBlocks && parsed.attributes) {
+        setCompletedBlocks(parsed.completedBlocks);
+        setAttributes(parsed.attributes);
+        if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
+        alert('数据导入成功！');
+        setShowDataModal(false);
+        setImportJsonText('');
+      } else {
+        alert('JSON 结构不匹配，导入失败。');
+      }
+    } catch (e) {
+      alert('JSON 文本格式有误。');
+    }
   };
 
-  const filteredTasks = tasks.filter(t => {
-    if (filterCategory !== 'all' && t.category !== filterCategory) return false;
-    if (filterStatus === 'ongoing' && t.completed) return false;
-    if (filterStatus === 'completed' && !t.completed) return false;
-    return true;
-  });
+  const completedCount = completedBlocks.filter(Boolean).length;
+  const progressPercent = Math.round((completedCount / TOTAL_BLOCKS) * 100);
+
+  const attributeLabels = {
+    strength: '力量 (STR)',
+    intelligence: '智力 (INT)',
+    agility: '敏捷 (AGI)',
+    vitality: '耐力 (VIT)',
+    creativity: '创造 (CRE)',
+    spirit: '意志 (SPR)'
+  };
 
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden bg-emerald-50/40 text-zinc-900 flex flex-col font-mono select-none">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-mono flex flex-col items-center p-3 sm:p-6 overflow-y-auto">
       
-      {/* 顶部标题栏：加入绿色主题基调 */}
-      <header className="bg-white border-b-2 border-zinc-900 px-4 py-3 shrink-0 flex items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-2">
-          <span className="text-xl">🍄</span>
-          <h1 className="font-bold tracking-wider text-xs sm:text-base text-emerald-900">100 CHANGE EVERYTHING</h1>
-        </div>
-        <div className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-bold">
-          v2.4
-        </div>
-      </header>
-
-      {/* 中间主容器 */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full pb-28">
-        
-        {/* 状态面板 */}
-        <div className="bg-white border-2 border-zinc-900 rounded-lg p-4 mb-5 shadow-[4px_4px_0px_0px_#10b981]">
-          <h2 className="text-xl font-black tracking-wide mb-2 text-emerald-900">SUPER 100 WORLD</h2>
-          <div className="flex items-center space-x-4 text-sm font-bold border-t border-zinc-200 pt-2">
-            <div className="flex items-center text-amber-600">
-              <Trophy className="w-4 h-4 mr-1" />
-              <span>LV.{currentLevel}</span>
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between text-xs text-zinc-500 mb-1">
-                <span>COIN EXP: {totalHours}H</span>
-                <span>NEXT LV: {currentExp}/50</span>
-              </div>
-              <div className="w-full bg-zinc-200 h-2.5 rounded-full overflow-hidden border border-zinc-900">
-                <div 
-                  className="bg-emerald-500 h-full transition-all duration-500" 
-                  style={{ width: `${(currentExp / 50) * 100}%` }}
+      {/* 顶栏：项目标题与数据备份入口 */}
+      <header className="w-full max-w-4xl bg-slate-900 border-4 border-slate-700 p-4 mb-6 shadow-[4px_4px_0px_0px_rgba(51,65,85,1)] flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="bg-amber-500 p-2 border-2 border-slate-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-slate-950">
+            <Trophy size={24} />
+          </div>
+          <div className="flex-1">
+            {isEditingTitle ? (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text" 
+                  value={tempTitle}
+                  onChange={(e) => setTempTitle(e.target.value)}
+                  className="bg-slate-950 border-2 border-amber-400 px-2 py-1 text-sm text-white focus:outline-none"
                 />
+                <button 
+                  onClick={() => { setProjectTitle(tempTitle); setIsEditingTitle(false); }}
+                  className="bg-emerald-600 px-2 py-1 text-xs border border-white hover:bg-emerald-500"
+                >
+                  保存
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-wider text-amber-400">{projectTitle}</h1>
+                <button 
+                  onClick={() => { setTempTitle(projectTitle); setIsEditingTitle(true); }}
+                  className="text-slate-400 hover:text-white"
+                  title="修改标题"
+                >
+                  <Edit2 size={16} />
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-slate-400">PIXEL RPG HABIT TRACKER V2.0</p>
           </div>
         </div>
 
-        {/* 首页打卡视图 */}
-        {activeTab === 'home' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2 text-xs">
+        <button 
+          onClick={() => setShowDataModal(true)}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 border-2 border-slate-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all text-sm font-bold"
+        >
+          <Settings size={16} /> 数据导入 / 导出
+        </button>
+      </header>
+
+      {/* 主面板区域 */}
+      <main className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* 左侧：雷达属性与计时器 */}
+        <div className="md:col-span-1 flex flex-col gap-6">
+          
+          {/* 计时器卡片 */}
+          <div className="bg-slate-900 border-4 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(51,65,85,1)]">
+            <div className="flex items-center justify-between mb-3 border-b-2 border-slate-800 pb-2">
+              <span className="text-xs text-amber-400 font-bold flex items-center gap-1">
+                <Clock size={14} /> 专注训练场
+              </span>
+              <span className="text-xs text-slate-400">累计时长</span>
+            </div>
+            
+            <div className="text-3xl font-bold text-center tracking-widest my-4 text-emerald-400 font-mono">
+              {formatTime(seconds)}
+            </div>
+
+            <div className="flex gap-2 justify-center mb-4">
               <button 
-                onClick={() => setFilterStatus('all')}
-                className={`px-3 py-1.5 rounded-md border border-zinc-900 font-bold transition-all ${filterStatus === 'all' ? 'bg-emerald-700 text-white shadow-[2px_2px_0px_0px_#065f46]' : 'bg-white'}`}
+                onClick={() => setIsActive(!isActive)}
+                className={`flex-1 flex items-center justify-center gap-1 py-2 px-3 border-2 border-slate-950 font-bold text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all ${
+                  isActive ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
               >
-                全部
+                {isActive ? <><Pause size={14} /> 暂停</> : <><Play size={14} /> 开始</>}
               </button>
               <button 
-                onClick={() => setFilterStatus('ongoing')}
-                className={`px-3 py-1.5 rounded-md border border-zinc-900 font-bold transition-all ${filterStatus === 'ongoing' ? 'bg-emerald-700 text-white shadow-[2px_2px_0px_0px_#065f46]' : 'bg-white'}`}
+                onClick={() => { setIsActive(false); setSeconds(0); }}
+                className="flex items-center justify-center p-2 bg-rose-600 hover:bg-rose-500 text-white border-2 border-slate-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                title="重置计时"
               >
-                进行中
-              </button>
-              <button 
-                onClick={() => setFilterStatus('completed')}
-                className={`px-3 py-1.5 rounded-md border border-zinc-900 font-bold transition-all ${filterStatus === 'completed' ? 'bg-emerald-700 text-white shadow-[2px_2px_0px_0px_#065f46]' : 'bg-white'}`}
-              >
-                已完成
+                <RotateCcw size={16} />
               </button>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
-              <button 
-                onClick={() => setFilterCategory('all')}
-                className={`px-2.5 py-1 rounded border border-zinc-900 whitespace-nowrap ${filterCategory === 'all' ? 'bg-emerald-800 text-white' : 'bg-white'}`}
+            {/* 训练归属属性选择 */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 block">打卡挂钩属性：</label>
+              <select 
+                value={selectedCategory} 
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full bg-slate-950 border-2 border-slate-700 p-2 text-xs text-amber-300 focus:outline-none"
               >
-                全部类别
-              </button>
-              {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
+                {Object.entries(attributeLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 六维属性面板 */}
+          <div className="bg-slate-900 border-4 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(51,65,85,1)]">
+            <h2 className="text-xs font-bold text-amber-400 mb-3 border-b-2 border-slate-800 pb-2 flex items-center gap-1">
+              <Shield size={14} /> 角色六维属性值
+            </h2>
+            <div className="space-y-2">
+              {Object.entries(attributes).map(([key, val]) => (
+                <div key={key} className="flex justify-between items-center text-xs">
+                  <span className="text-slate-300">{attributeLabels[key]}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 bg-slate-950 h-3 border border-slate-700 overflow-hidden">
+                      <div 
+                        className="bg-emerald-500 h-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (val / 50) * 100)}%` }}
+                      ></div>
+                    </div>
+                    <span className="font-bold text-amber-400 w-6 text-right">{val}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* 右侧：100小时像素网格打卡主区 */}
+        <div className="md:col-span-2 bg-slate-900 border-4 border-slate-700 p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(51,65,85,1)] flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 border-b-2 border-slate-800 pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-amber-400 flex items-center gap-1">
+                  <Target size={16} /> 100区块网格打卡图 ({completedCount}/{TOTAL_BLOCKS})
+                </h2>
+                <p className="text-xs text-slate-400">点击格子代表完成1小时投入，同时为当前属性加点</p>
+              </div>
+              <div className="bg-slate-950 border-2 border-amber-500 px-3 py-1 text-amber-400 font-bold text-xs">
+                进度: {progressPercent}%
+              </div>
+            </div>
+
+            {/* 10x10 像素风格网格 */}
+            <div className="grid grid-cols-10 gap-1.5 bg-slate-950 p-3 border-2 border-slate-800 my-4">
+              {completedBlocks.map((isCompleted, index) => (
                 <button
-                  key={key}
-                  onClick={() => setFilterCategory(key)}
-                  className={`px-2.5 py-1 rounded border border-zinc-950 whitespace-nowrap ${filterCategory === key ? 'bg-emerald-800 text-white' : 'bg-white'}`}
+                  key={index}
+                  onClick={() => handleBlockClick(index)}
+                  title={`区块 #${index + 1} - ${isCompleted ? '已完成' : '未完成'}`}
+                  className={`aspect-square border transition-all flex items-center justify-center text-[10px] font-bold ${
+                    isCompleted 
+                      ? 'bg-amber-500 border-slate-950 text-slate-950 shadow-[inset_2px_2px_0px_0px_rgba(255,255,255,0.4)]' 
+                      : 'bg-slate-900 border-slate-700 text-slate-600 hover:border-amber-400/50 hover:bg-slate-800'
+                  }`}
                 >
-                  {val.label}
+                  {isCompleted ? '✓' : index + 1}
                 </button>
               ))}
             </div>
-
-            <div className="space-y-3">
-              {filteredTasks.length === 0 ? (
-                <div className="text-center py-12 text-zinc-400 bg-white border-2 border-dashed border-zinc-300 rounded-lg text-xs">
-                  暂无打卡记录，点击下方 [+] 添加新目标吧！
-                </div>
-              ) : (
-                filteredTasks.map(task => {
-                  const catInfo = CATEGORY_LABELS[task.category] || CATEGORY_LABELS.wisdom;
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={`bg-white border-2 border-zinc-900 rounded-lg p-3.5 shadow-[3px_3px_0px_0px_#10b981] flex items-center justify-between transition-all ${task.completed ? 'opacity-60 bg-zinc-50' : ''}`}
-                    >
-                      <div className="flex items-start space-x-3 flex-1 min-w-0">
-                        <button 
-                          onClick={() => toggleTask(task.id)}
-                          className={`mt-0.5 w-6 h-6 rounded border-2 border-zinc-900 flex items-center justify-center shrink-0 ${task.completed ? 'bg-emerald-600 text-white' : 'bg-white'}`}
-                        >
-                          {task.completed && <CheckCircle2 className="w-4 h-4" />}
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <span className={`text-[11px] px-2.5 py-0.5 rounded border ${catInfo.color} font-bold`}>
-                              {catInfo.label}
-                            </span>
-                            <span className="text-[10px] text-zinc-500 truncate">
-                              WORLD {task.worldId}: {WORLD_NAMES[task.worldId]}
-                            </span>
-                          </div>
-                          <h3 className={`font-bold text-sm truncate ${task.completed ? 'line-through text-zinc-400' : 'text-zinc-900'}`}>
-                            {task.title}
-                          </h3>
-                          <div className="text-[11px] text-zinc-500 mt-1 flex items-center space-x-3">
-                            <span>已投入: <strong className="text-zinc-900">+{task.hours}H</strong></span>
-                            <span>日期: {task.date}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={() => deleteTask(task.id)}
-                        className="ml-3 p-2 text-zinc-400 hover:text-rose-600 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
           </div>
-        )}
 
-        {/* 添加打卡视图 */}
-        {activeTab === 'add' && (
-          <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#10b981]">
-            <h2 className="text-base font-black mb-4 flex items-center text-emerald-900">
-              <Plus className="w-5 h-5 mr-1" /> 记录新的 100 小时突破
-            </h2>
-            <form onSubmit={handleAddTask} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold mb-1">打卡内容/项目名称</label>
-                <input 
-                  type="text"
-                  value={newTitle}
-                  onChange={e => setNewTitle(e.target.value)}
-                  placeholder="例如：系统性阅读设计模式..."
-                  className="w-full border-2 border-zinc-900 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-600"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold mb-1">所属分类</label>
-                  <select 
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value as any)}
-                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-xs bg-white focus:outline-none"
-                  >
-                    {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
-                      <option key={key} value={key}>{val.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold mb-1">目标世界 (World)</label>
-                  <select 
-                    value={newWorldId}
-                    onChange={e => setNewWorldId(Number(e.target.value))}
-                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-xs bg-white focus:outline-none"
-                  >
-                    {Object.entries(WORLD_NAMES).map(([id, name]) => (
-                      <option key={id} value={id}>World {id}: {name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">本次投入时长 (小时)</label>
-                <input 
-                  type="number"
-                  min="1"
-                  max="24"
-                  value={newHours}
-                  onChange={e => setNewHours(Number(e.target.value))}
-                  className="w-full border-2 border-zinc-900 rounded px-3 py-2 text-sm focus:outline-none"
-                  required
-                />
-              </div>
-
-              <button 
-                type="submit"
-                className="w-full bg-emerald-700 text-white font-bold py-3 rounded border-2 border-zinc-900 shadow-[3px_3px_0px_0px_#065f46] hover:translate-x-0.5 hover:translate-y-0.5 transition-all text-sm"
-              >
-                确认保存打卡
-              </button>
-            </form>
+          <div className="text-xs text-slate-400 bg-slate-950 p-3 border border-slate-800 flex items-center justify-between">
+            <span>当前打卡挂钩属性：<strong className="text-amber-400">{attributeLabels[selectedCategory]}</strong></span>
+            <span className="text-emerald-400 font-bold">坚持就是胜利！</span>
           </div>
-        )}
-
-        {/* 统计数据视图（带六维进度条） */}
-        {activeTab === 'stats' && (
-          <div className="space-y-4">
-            <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#10b981]">
-              <h2 className="text-base font-black mb-3 flex items-center text-emerald-900">
-                <BarChart2 className="w-5 h-5 mr-2" /> 总体数据统计
-              </h2>
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded">
-                  <div className="text-[11px] text-zinc-500">累计投入总时间</div>
-                  <div className="text-2xl font-black text-emerald-700 mt-1">{totalHours} <span className="text-xs font-normal">小时</span></div>
-                </div>
-                <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded">
-                  <div className="text-[11px] text-zinc-500">完成打卡总项数</div>
-                  <div className="text-2xl font-black text-emerald-700 mt-1">{tasks.filter(t => t.completed).length} <span className="text-xs font-normal">项</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#10b981]">
-              <h3 className="font-bold text-xs mb-3 text-emerald-900">六大世界进度概览</h3>
-              <div className="space-y-3 text-xs">
-                {Object.entries(WORLD_NAMES).map(([id, name]) => {
-                  const worldHours = tasks.filter(t => t.worldId === Number(id)).reduce((acc, t) => acc + t.hours, 0);
-                  const progress = Math.min((worldHours / 100) * 100, 100);
-                  return (
-                    <div key={id}>
-                      <div className="flex justify-between mb-1 font-bold text-[11px]">
-                        <span>W{id}: {name}</span>
-                        <span>{worldHours} / 100 H</span>
-                      </div>
-                      <div className="w-full bg-zinc-100 h-2 rounded border border-zinc-900 overflow-hidden">
-                        <div className="bg-emerald-600 h-full transition-all duration-300" style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
       </main>
 
-      {/* 底部导航栏 */}
-      <nav className="shrink-0 bg-white border-t-2 border-zinc-900 px-6 py-2 pb-6 flex justify-around items-center z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        <button 
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'home' ? 'text-emerald-700 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <Home className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">首页</span>
-        </button>
+      {/* 数据导入 / 导出弹窗 */}
+      {showDataModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border-4 border-slate-700 w-full max-w-lg p-5 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-amber-400 flex items-center gap-2">
+                <Settings size={18} /> 数据管理中心
+              </h3>
+              <button 
+                onClick={() => setShowDataModal(false)}
+                className="text-slate-400 hover:text-white font-bold px-2 py-1 bg-slate-800 border border-slate-600 text-xs"
+              >
+                关闭
+              </button>
+            </div>
 
-        <button 
-          onClick={() => setActiveTab('add')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'add' ? 'text-emerald-700 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center mb-0.5 text-xs font-black">+</div>
-          <span className="text-[10px]">记录</span>
-        </button>
+            {/* 导出区域 */}
+            <div className="space-y-2 bg-slate-950 p-3 border border-slate-800">
+              <h4 className="text-xs font-bold text-slate-300">1. 导出本地数据备份</h4>
+              <p className="text-[11px] text-slate-400">将当前的 100 网格进度、雷达属性及项目名称保存为一个 JSON 备份文件。</p>
+              <button 
+                onClick={handleExportData}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 text-xs border-2 border-slate-950 font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <Download size={14} /> 导出为 JSON 文件
+              </button>
+            </div>
 
-        <button 
-          onClick={() => setActiveTab('stats')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'stats' ? 'text-emerald-700 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <BarChart2 className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">统计</span>
-        </button>
-      </nav>
+            {/* 导入本地文件区域 */}
+            <div className="space-y-2 bg-slate-950 p-3 border border-slate-800">
+              <h4 className="text-xs font-bold text-slate-300">2. 从文件导入备份</h4>
+              <p className="text-[11px] text-slate-400">选择之前导出的 JSON 备份文件恢复数据。</p>
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".json"
+                className="text-xs text-slate-400 file:mr-4 file:py-1 file:px-3 file:border-2 file:border-slate-950 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+              />
+            </div>
+
+            {/* 粘贴文本导入区域 */}
+            <div className="space-y-2 bg-slate-950 p-3 border border-slate-800">
+              <h4 className="text-xs font-bold text-slate-300">3. 粘贴 JSON 文本导入</h4>
+              <textarea 
+                rows={3}
+                value={importJsonText}
+                onChange={(e) => setImportJsonText(e.target.value)}
+                placeholder="在此处粘贴你的 JSON 数据代码..."
+                className="w-full bg-slate-900 border border-slate-700 p-2 text-xs text-white focus:outline-none"
+              />
+              <button 
+                onClick={handleImportJsonText}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs border-2 border-slate-950 font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <Upload size={14} /> 确认文本导入
+              </button>
+            </div>
+            
+          </div>
+        </div>
+      )}
 
     </div>
   );
