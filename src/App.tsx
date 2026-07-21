@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Trophy, Flame, Sparkles, CheckCircle2, Clock, Plus, 
-  RotateCcw, Trash2, Home, BarChart2, BookOpen, 
-  Dumbbell, Lightbulb, Wrench, Coins, ArrowRight,
-  TrendingUp, Award, Zap
+  Trophy, CheckCircle2, Plus, 
+  Home, BarChart2, BookOpen, 
+  Dumbbell, Sparkles, Wrench, Coins, Zap, Trash2
 } from 'lucide-react';
 
-// 定义数据类型
 interface Task {
   id: string;
   title: string;
@@ -52,7 +50,6 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'ongoing' | 'completed'>('all');
 
-  // 新增打卡表单状态
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<keyof typeof CATEGORY_LABELS>('wisdom');
   const [newWorldId, setNewWorldId] = useState<number>(1);
@@ -102,22 +99,22 @@ export default function App() {
   });
 
   return (
-    /* 核心修改：固定外框 h-screen overflow-hidden，禁止整个网页上下飘动 */
-    <div className="h-screen w-screen overflow-hidden bg-[#f4f4f0] text-zinc-900 flex flex-col font-mono select-none">
+    /* 使用 100dvh 完美适配手机视口，避开浏览器工具栏遮挡 */
+    <div className="h-[100dvh] w-screen overflow-hidden bg-[#f4f4f0] text-zinc-900 flex flex-col font-mono select-none">
       
-      {/* 顶部固定标题栏 */}
+      {/* 顶部标题栏 */}
       <header className="bg-white border-b-2 border-zinc-900 px-4 py-3 shrink-0 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-2">
           <span className="text-xl">🍄</span>
-          <h1 className="font-bold tracking-wider text-sm sm:text-base">100 CHANGE EVERYTHING</h1>
+          <h1 className="font-bold tracking-wider text-xs sm:text-base">100 CHANGE EVERYTHING</h1>
         </div>
-        <div className="text-xs bg-zinc-100 border border-zinc-300 px-2 py-1 rounded">
-          Vercel App v2.1
+        <div className="text-[10px] bg-zinc-100 border border-zinc-300 px-2 py-0.5 rounded">
+          v2.2
         </div>
       </header>
 
-      {/* 中间主容器：允许内部独立滚动 */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full pb-24">
+      {/* 中间主容器：内部可滚动 */}
+      <main className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full pb-28">
         
         {/* 状态面板 */}
         <div className="bg-white border-2 border-zinc-900 rounded-lg p-4 mb-5 shadow-[4px_4px_0px_0px_#18181b]">
@@ -142,10 +139,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* 视图标签 1：首页打卡列表 */}
+        {/* 首页打卡视图 */}
         {activeTab === 'home' && (
           <div className="space-y-4">
-            {/* 筛选按钮组 */}
             <div className="flex flex-wrap gap-2 text-xs">
               <button 
                 onClick={() => setFilterStatus('all')}
@@ -167,7 +163,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* 分类标签横向滚动 */}
             <div className="flex gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
               <button 
                 onClick={() => setFilterCategory('all')}
@@ -186,16 +181,14 @@ export default function App() {
               ))}
             </div>
 
-            {/* 任务卡片列表 */}
             <div className="space-y-3">
               {filteredTasks.length === 0 ? (
-                <div className="text-center py-12 text-zinc-400 bg-white border-2 border-dashed border-zinc-300 rounded-lg">
+                <div className="text-center py-12 text-zinc-400 bg-white border-2 border-dashed border-zinc-300 rounded-lg text-xs">
                   暂无打卡记录，点击下方 [+] 添加新目标吧！
                 </div>
               ) : (
                 filteredTasks.map(task => {
                   const catInfo = CATEGORY_LABELS[task.category] || CATEGORY_LABELS.wisdom;
-                  const IconComp = catInfo.icon;
                   return (
                     <div 
                       key={task.id} 
@@ -213,14 +206,14 @@ export default function App() {
                             <span className={`text-[10px] px-2 py-0.5 rounded border ${catInfo.color} font-bold`}>
                               {catInfo.label}
                             </span>
-                            <span className="text-xs text-zinc-500 truncate">
+                            <span className="text-[10px] text-zinc-500 truncate">
                               WORLD {task.worldId}: {WORLD_NAMES[task.worldId]}
                             </span>
                           </div>
                           <h3 className={`font-bold text-sm truncate ${task.completed ? 'line-through text-zinc-400' : 'text-zinc-900'}`}>
                             {task.title}
                           </h3>
-                          <div className="text-xs text-zinc-500 mt-1 flex items-center space-x-3">
+                          <div className="text-[11px] text-zinc-500 mt-1 flex items-center space-x-3">
                             <span>已投入: <strong className="text-zinc-900">+{task.hours}H</strong></span>
                             <span>日期: {task.date}</span>
                           </div>
@@ -230,7 +223,6 @@ export default function App() {
                       <button 
                         onClick={() => deleteTask(task.id)}
                         className="ml-3 p-2 text-zinc-400 hover:text-rose-600 transition-colors"
-                        title="删除"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -242,32 +234,32 @@ export default function App() {
           </div>
         )}
 
-        {/* 视图标签 2：添加打卡 */}
+        {/* 添加打卡视图 */}
         {activeTab === 'add' && (
           <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#18181b]">
-            <h2 className="text-lg font-black mb-4 flex items-center">
+            <h2 className="text-base font-black mb-4 flex items-center">
               <Plus className="w-5 h-5 mr-1" /> 记录新的 100 小时突破
             </h2>
-            <form onSubmit={handleAddTask} className="space-y-4">
+            <form onSubmit={handleAddTask} className="space-y-4 text-xs">
               <div>
-                <label className="block text-xs font-bold mb-1">打卡内容/项目名称</label>
+                <label className="block font-bold mb-1">打卡内容/项目名称</label>
                 <input 
                   type="text"
                   value={newTitle}
                   onChange={e => setNewTitle(e.target.value)}
                   placeholder="例如：系统性阅读设计模式..."
-                  className="w-full border-2 border-zinc-900 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  className="w-full border-2 border-zinc-900 rounded px-3 py-2 text-sm focus:outline-none"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold mb-1">所属分类</label>
+                  <label className="block font-bold mb-1">所属分类</label>
                   <select 
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value as any)}
-                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-sm bg-white focus:outline-none"
+                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-xs bg-white focus:outline-none"
                   >
                     <option value="wisdom">智慧 (Wisdom)</option>
                     <option value="body">体力 (Body)</option>
@@ -279,11 +271,11 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold mb-1">目标世界 (World)</label>
+                  <label className="block font-bold mb-1">目标世界 (World)</label>
                   <select 
                     value={newWorldId}
                     onChange={e => setNewWorldId(Number(e.target.value))}
-                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-sm bg-white focus:outline-none"
+                    className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-xs bg-white focus:outline-none"
                   >
                     {Object.entries(WORLD_NAMES).map(([id, name]) => (
                       <option key={id} value={id}>World {id}: {name}</option>
@@ -293,7 +285,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold mb-1">本次投入时长 (小时)</label>
+                <label className="block font-bold mb-1">本次投入时长 (小时)</label>
                 <input 
                   type="number"
                   min="1"
@@ -307,7 +299,7 @@ export default function App() {
 
               <button 
                 type="submit"
-                className="w-full bg-zinc-900 text-white font-bold py-3 rounded border-2 border-zinc-900 shadow-[3px_3px_0px_0px_#71717a] hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+                className="w-full bg-zinc-900 text-white font-bold py-3 rounded border-2 border-zinc-900 shadow-[3px_3px_0px_0px_#71717a] hover:translate-x-0.5 hover:translate-y-0.5 transition-all text-sm"
               >
                 确认保存打卡
               </button>
@@ -315,34 +307,34 @@ export default function App() {
           </div>
         )}
 
-        {/* 视图标签 3：统计数据面板 */}
+        {/* 统计数据视图 */}
         {activeTab === 'stats' && (
           <div className="space-y-4">
             <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#18181b]">
-              <h2 className="text-lg font-black mb-3 flex items-center">
+              <h2 className="text-base font-black mb-3 flex items-center">
                 <BarChart2 className="w-5 h-5 mr-2" /> 总体数据统计
               </h2>
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="bg-zinc-50 border border-zinc-300 p-3 rounded">
-                  <div className="text-xs text-zinc-500">累计投入总时间</div>
+                  <div className="text-[11px] text-zinc-500">累计投入总时间</div>
                   <div className="text-2xl font-black text-emerald-600 mt-1">{totalHours} <span className="text-xs font-normal">小时</span></div>
                 </div>
                 <div className="bg-zinc-50 border border-zinc-300 p-3 rounded">
-                  <div className="text-xs text-zinc-500">完成打卡总项数</div>
+                  <div className="text-[11px] text-zinc-500">完成打卡总项数</div>
                   <div className="text-2xl font-black text-blue-600 mt-1">{tasks.filter(t => t.completed).length} <span className="text-xs font-normal">项</span></div>
                 </div>
               </div>
             </div>
 
             <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#18181b]">
-              <h3 className="font-bold text-sm mb-3">六大世界进度概览</h3>
+              <h3 className="font-bold text-xs mb-3">六大世界进度概览</h3>
               <div className="space-y-3 text-xs">
                 {Object.entries(WORLD_NAMES).map(([id, name]) => {
                   const worldHours = tasks.filter(t => t.worldId === Number(id)).reduce((acc, t) => acc + t.hours, 0);
                   const progress = Math.min((worldHours / 100) * 100, 100);
                   return (
                     <div key={id}>
-                      <div className="flex justify-between mb-1 font-bold">
+                      <div className="flex justify-between mb-1 font-bold text-[11px]">
                         <span>W{id}: {name}</span>
                         <span>{worldHours} / 100 H</span>
                       </div>
@@ -359,11 +351,11 @@ export default function App() {
 
       </main>
 
-      {/* 底部固定导航栏（模仿 App 底部 Tab 栏） */}
-      <nav className="shrink-0 bg-white border-t-2 border-zinc-900 px-6 py-2 flex justify-around items-center z-10">
+      {/* 底部导航栏：增加底部安全区边距 (pb-safe)，完美避开手机黑条和浏览器控制栏 */}
+      <nav className="shrink-0 bg-white border-t-2 border-zinc-900 px-6 py-2 pb-6 flex justify-around items-center z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
         <button 
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center py-1 px-3 rounded font-bold transition-all ${activeTab === 'home' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
+          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'home' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
         >
           <Home className="w-5 h-5 mb-0.5" />
           <span className="text-[10px]">首页</span>
@@ -371,7 +363,7 @@ export default function App() {
 
         <button 
           onClick={() => setActiveTab('add')}
-          className={`flex flex-col items-center py-1 px-3 rounded font-bold transition-all ${activeTab === 'add' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
+          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'add' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
         >
           <div className="w-5 h-5 rounded-full bg-zinc-900 text-white flex items-center justify-center mb-0.5 text-xs font-black">+</div>
           <span className="text-[10px]">记录</span>
@@ -379,7 +371,7 @@ export default function App() {
 
         <button 
           onClick={() => setActiveTab('stats')}
-          className={`flex flex-col items-center py-1 px-3 rounded font-bold transition-all ${activeTab === 'stats' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
+          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'stats' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
         >
           <BarChart2 className="w-5 h-5 mb-0.5" />
           <span className="text-[10px]">统计</span>
