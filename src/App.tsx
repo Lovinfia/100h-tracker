@@ -25,6 +25,7 @@ const WORLD_NAMES: Record<number, string> = {
   6: '内在精神与心流重塑'
 };
 
+// 你的彩色标签定义，已复原
 const CATEGORY_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   wisdom: { label: '智慧', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: BookOpen },
   body: { label: '体力', color: 'bg-amber-100 text-amber-800 border-amber-300', icon: Dumbbell },
@@ -40,6 +41,7 @@ export default function App() {
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
+    // 演示数据
     return [
       { id: '1', title: '精读技术专著与文献', category: 'wisdom', worldId: 1, hours: 18, targetHours: 100, completed: false, date: '2026-05-01' },
       { id: '2', title: '核心体能与力量特训', category: 'body', worldId: 2, hours: 45, targetHours: 100, completed: false, date: '2026-05-02' }
@@ -98,8 +100,15 @@ export default function App() {
     return true;
   });
 
+  // 计算六维数据
+  const worldStats = Object.keys(WORLD_NAMES).map(id => {
+    const worldIdNum = Number(id);
+    const hours = tasks.filter(t => t.worldId === worldIdNum).reduce((acc, t) => acc + t.hours, 0);
+    return { id: id, name: WORLD_NAMES[worldIdNum], hours: hours, percentage: Math.min((hours / 100) * 100, 100) };
+  });
+
   return (
-    /* 使用 100dvh 完美适配手机视口，避开浏览器工具栏遮挡 */
+    /* 完美适配 iPhone 底部安全区 */
     <div className="h-[100dvh] w-screen overflow-hidden bg-[#f4f4f0] text-zinc-900 flex flex-col font-mono select-none">
       
       {/* 顶部标题栏 */}
@@ -109,7 +118,7 @@ export default function App() {
           <h1 className="font-bold tracking-wider text-xs sm:text-base">100 CHANGE EVERYTHING</h1>
         </div>
         <div className="text-[10px] bg-zinc-100 border border-zinc-300 px-2 py-0.5 rounded">
-          v2.2
+          v2.3
         </div>
       </header>
 
@@ -203,7 +212,8 @@ export default function App() {
                         </button>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center space-x-2 mb-1">
-                            <span className={`text-[10px] px-2 py-0.5 rounded border ${catInfo.color} font-bold`}>
+                            {/* 恢复彩色标签 */}
+                            <span className={`text-[11px] px-2.5 py-0.5 rounded border ${catInfo.color} font-bold`}>
                               {catInfo.label}
                             </span>
                             <span className="text-[10px] text-zinc-500 truncate">
@@ -261,12 +271,9 @@ export default function App() {
                     onChange={e => setNewCategory(e.target.value as any)}
                     className="w-full border-2 border-zinc-900 rounded px-2 py-2 text-xs bg-white focus:outline-none"
                   >
-                    <option value="wisdom">智慧 (Wisdom)</option>
-                    <option value="body">体力 (Body)</option>
-                    <option value="creativity">创造力 (Creativity)</option>
-                    <option value="skill">技巧 (Skill)</option>
-                    <option value="wealth">财富 (Wealth)</option>
-                    <option value="spirit">精神力 (Spirit)</option>
+                    {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
+                        <option key={key} value={key}>{val.label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -291,93 +298,4 @@ export default function App() {
                   min="1"
                   max="24"
                   value={newHours}
-                  onChange={e => setNewHours(Number(e.target.value))}
-                  className="w-full border-2 border-zinc-900 rounded px-3 py-2 text-sm focus:outline-none"
-                  required
-                />
-              </div>
-
-              <button 
-                type="submit"
-                className="w-full bg-zinc-900 text-white font-bold py-3 rounded border-2 border-zinc-900 shadow-[3px_3px_0px_0px_#71717a] hover:translate-x-0.5 hover:translate-y-0.5 transition-all text-sm"
-              >
-                确认保存打卡
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* 统计数据视图 */}
-        {activeTab === 'stats' && (
-          <div className="space-y-4">
-            <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#18181b]">
-              <h2 className="text-base font-black mb-3 flex items-center">
-                <BarChart2 className="w-5 h-5 mr-2" /> 总体数据统计
-              </h2>
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-zinc-50 border border-zinc-300 p-3 rounded">
-                  <div className="text-[11px] text-zinc-500">累计投入总时间</div>
-                  <div className="text-2xl font-black text-emerald-600 mt-1">{totalHours} <span className="text-xs font-normal">小时</span></div>
-                </div>
-                <div className="bg-zinc-50 border border-zinc-300 p-3 rounded">
-                  <div className="text-[11px] text-zinc-500">完成打卡总项数</div>
-                  <div className="text-2xl font-black text-blue-600 mt-1">{tasks.filter(t => t.completed).length} <span className="text-xs font-normal">项</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border-2 border-zinc-900 rounded-lg p-5 shadow-[4px_4px_0px_0px_#18181b]">
-              <h3 className="font-bold text-xs mb-3">六大世界进度概览</h3>
-              <div className="space-y-3 text-xs">
-                {Object.entries(WORLD_NAMES).map(([id, name]) => {
-                  const worldHours = tasks.filter(t => t.worldId === Number(id)).reduce((acc, t) => acc + t.hours, 0);
-                  const progress = Math.min((worldHours / 100) * 100, 100);
-                  return (
-                    <div key={id}>
-                      <div className="flex justify-between mb-1 font-bold text-[11px]">
-                        <span>W{id}: {name}</span>
-                        <span>{worldHours} / 100 H</span>
-                      </div>
-                      <div className="w-full bg-zinc-100 h-2 rounded border border-zinc-900 overflow-hidden">
-                        <div className="bg-zinc-900 h-full transition-all duration-300" style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* 底部导航栏：增加底部安全区边距 (pb-safe)，完美避开手机黑条和浏览器控制栏 */}
-      <nav className="shrink-0 bg-white border-t-2 border-zinc-900 px-6 py-2 pb-6 flex justify-around items-center z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        <button 
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'home' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <Home className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">首页</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('add')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'add' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <div className="w-5 h-5 rounded-full bg-zinc-900 text-white flex items-center justify-center mb-0.5 text-xs font-black">+</div>
-          <span className="text-[10px]">记录</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('stats')}
-          className={`flex flex-col items-center py-1 px-4 rounded font-bold transition-all ${activeTab === 'stats' ? 'text-emerald-600 bg-emerald-50 border border-emerald-300' : 'text-zinc-500'}`}
-        >
-          <BarChart2 className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">统计</span>
-        </button>
-      </nav>
-
-    </div>
-  );
-}
+                  onChange={e => setNewHours(Number(
