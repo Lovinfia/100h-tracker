@@ -69,15 +69,12 @@ export default function App() {
     ];
   });
 
-  // 主导航：home 任务列表, stats RPG统计
   const [mainTab, setMainTab] = useState<'home' | 'stats'>('home');
-  // Home 内部子 Tab：任务列表 vs 计时器
   const [homeSubTab, setHomeSubTab] = useState<'list' | 'timer'>('list');
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('全部');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('all');
   
-  // 新建弹窗
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategories, setNewCategories] = useState<string[]>(['智慧']);
@@ -85,14 +82,11 @@ export default function App() {
   const [newEndDate, setNewEndDate] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
-  // 当前详情页
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
 
-  // 修改标题相关状态
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState('');
 
-  // 文件导入 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 计时器相关状态
@@ -102,30 +96,85 @@ export default function App() {
   const [timerMode, setTimerMode] = useState<'countdown' | 'stopwatch'>('countdown');
   const [stopwatchSeconds, setStopwatchSeconds] = useState<number>(0);
 
+  // 用于后台时间戳计算的 Ref
+  const targetTimestampRef = useRef<number | null>(null);
+  const stopwatchStartTimeRef = useRef<number | null>(null);
+  const stopwatchInitialSecondsRef = useRef<number>(0);
+
   useEffect(() => {
     localStorage.setItem('track100_mario_goals_v5', JSON.stringify(goals));
   }, [goals]);
 
+  // 核心优化：基于时间戳的计时器 + 页面可见性恢复（完美支持后台挂起/锁屏恢复）
   useEffect(() => {
     let interval: any = null;
+
     if (timerRunning) {
+      // 1. 初始化计时基准时间戳
+      if (timerMode === 'countdown') {
+        if (!targetTimestampRef.current) {
+          targetTimestampRef.current = Date.now() + timerSeconds * 1000;
+        }
+      } else {
+        if (!stopwatchStartTimeRef.current) {
+          stopwatchStartTimeRef.current = Date.now();
+          stopwatchInitialSecondsRef.current = stopwatchSeconds;
+        }
+      }
+
+      // 2. 循环计算
       interval = setInterval(() => {
         if (timerMode === 'countdown') {
-          setTimerSeconds(prev => {
-            if (prev <= 1) {
+          if (targetTimestampRef.current) {
+            const remaining = Math.max(0, Math.ceil((targetTimestampRef.current - Date.now()) / 1000));
+            setTimerSeconds(remaining);
+            if (remaining <= 0) {
               setTimerRunning(false);
-              alert('STAGE CLEAR! 计时1小时已完成，已为你自动计入对应任务！');
+              targetTimestampRef.current = null;
+              alert('STAGE CLEAR! 计时1小时已完成, 已为你自动计入对应任务！');
               if (timerGoalId) handleCheckIn(timerGoalId);
-              return 3600;
+              setTimerSeconds(3600);
             }
-            return prev - 1;
-          });
+          }
         } else {
-          setStopwatchSeconds(prev => prev + 1);
+          if (stopwatchStartTimeRef.current) {
+            const elapsed = Math.floor((Date.now() - stopwatchStartTimeRef.current) / 1000);
+            setStopwatchSeconds(stopwatchInitialSecondsRef.current + elapsed);
+          }
         }
-      }, 1000);
+      }, 500); // 缩短检测频率使反馈更精准
+
+      // 3. 监听页面可见性（用户从后台切回网页时立刻校准时间）
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && timerRunning) {
+          if (timerMode === 'countdown' && targetTimestampRef.current) {
+            const remaining = Math.max(0, Math.ceil((targetTimestampRef.current - Date.now()) / 1000));
+            setTimerSeconds(remaining);
+            if (remaining <= 0) {
+              setTimerRunning(false);
+              targetTimestampRef.current = null;
+              alert('STAGE CLEAR! 计时1小时已完成, 已为你自动计入对应任务！');
+              if (timerGoalId) handleCheckIn(timerGoalId);
+              setTimerSeconds(3600);
+            }
+          } else if (timerMode === 'stopwatch' && stopwatchStartTimeRef.current) {
+            const elapsed = Math.floor((Date.now() - stopwatchStartTimeRef.current) / 1000);
+            setStopwatchSeconds(stopwatchInitialSecondsRef.current + elapsed);
+          }
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (interval) clearInterval(interval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    } else {
+      // 暂停时清空时间戳基准
+      targetTimestampRef.current = null;
+      stopwatchStartTimeRef.current = null;
     }
-    return () => clearInterval(interval);
   }, [timerRunning, timerMode, timerGoalId]);
 
   const completedGoalsCount = goals.filter(g => g.currentHours >= 100 || g.completed).length;
@@ -201,7 +250,6 @@ export default function App() {
     }
   };
 
-  // 数据导出
   const handleExportData = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(goals, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -212,7 +260,6 @@ export default function App() {
     downloadAnchor.remove();
   };
 
-  // 数据导入
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
@@ -233,7 +280,6 @@ export default function App() {
     }
   };
 
-  // 修改任务标题保存
   const handleSaveTitle = (id: string) => {
     if (!editingTitleText.trim()) return;
     setGoals(goals.map(g => g.id === id ? { ...g, title: editingTitleText.trim() } : g));
@@ -272,7 +318,6 @@ export default function App() {
     <div className="min-h-screen bg-[#081c10] text-[#ecfdf5] flex justify-center pb-28 font-mono select-none overflow-x-hidden">
       <div className="w-full max-w-md min-h-screen flex flex-col relative shadow-2xl bg-[#0f2d18] border-x-4 border-[#1b4d2c] pb-12">
         
-        {/* 顶部 Header 包含导出导入快捷按钮 */}
         <header className="px-5 pt-6 pb-4 bg-gradient-to-b from-[#144222] to-[#0f2d18] rounded-b-3xl border-b-4 border-[#226e3e]">
           <div className="flex justify-between items-start">
             <div>
@@ -284,7 +329,6 @@ export default function App() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              {/* 导入导出按钮组 */}
               <button 
                 onClick={handleExportData} 
                 title="导出存档"
@@ -328,10 +372,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* 内容区域支持平滑滚动 */}
         <div className="flex-1 overflow-y-auto px-5 py-4 scroll-smooth">
           {activeGoal ? (
-            /* 打卡详情页：支持修改标题 */
             <div className="flex flex-col animate-fadeIn pb-6">
               <button 
                 onClick={() => { setActiveGoalId(null); setIsEditingTitle(false); }}
@@ -354,7 +396,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* 修改标题交互模块 */}
                 <div className="mt-3">
                   {isEditingTitle ? (
                     <div className="flex items-center gap-2 mt-1">
@@ -408,7 +449,6 @@ export default function App() {
                   </span>
                 </div>
 
-                {/* 网格打卡 */}
                 <div className="grid grid-cols-10 gap-1.5 my-auto py-2 px-1">
                   {Array.from({ length: 100 }).map((_, index) => {
                     const isChecked = index < activeGoal.currentHours;
@@ -464,7 +504,6 @@ export default function App() {
               </div>
             </div>
           ) : mainTab === 'stats' ? (
-            /* STATS 页面 */
             <div className="space-y-4 animate-fadeIn pb-6">
               <div className="bg-[#144222] p-5 rounded-xl border-2 border-[#226e3e] shadow-lg flex flex-col items-center">
                 <h4 className="text-xs font-black text-[#ffd700] mb-4 tracking-wider flex items-center gap-1.5 self-start">
@@ -523,7 +562,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 预计完成时间预测 */}
               <div className="bg-[#144222] p-5 rounded-xl border-2 border-[#226e3e] shadow-lg">
                 <h4 className="text-xs font-black text-[#ffd700] mb-3 tracking-wider flex items-center gap-1.5">
                   <Clock size={14} className="text-[#ffd700]" /> ETA 预计完成天数预测
@@ -544,10 +582,8 @@ export default function App() {
               </div>
             </div>
           ) : (
-            /* HOME 页面 */
             <div className="flex flex-col pb-6">
               
-              {/* Home 内部子 Tab 切换 */}
               <div className="grid grid-cols-2 gap-2 mb-4 bg-[#081c10] p-1.5 rounded-xl border-2 border-[#226e3e] shadow-inner">
                 <button 
                   onClick={() => setHomeSubTab('list')}
@@ -563,7 +599,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 子 Tab 1: 任务列表 */}
               {homeSubTab === 'list' && (
                 <div className="space-y-4">
                   <div className="flex gap-2">
@@ -647,11 +682,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* 子 Tab 2: 计时器功能 */}
               {homeSubTab === 'timer' && (
                 <div className="bg-[#144222] p-5 rounded-xl border-2 border-[#226e3e] shadow-lg space-y-5 animate-fadeIn">
                   <div className="flex items-center gap-2 text-[#ffd700] font-black text-xs">
-                    <TimerIcon size={16} /> 专注计时挑战器 (Timer Linking)
+                    <TimerIcon size={16} /> 专注计时挑战器 (Background Active Timer)
                   </div>
 
                   <div>
@@ -687,7 +721,7 @@ export default function App() {
                       {timerMode === 'countdown' ? formatTime(timerSeconds) : formatTime(stopwatchSeconds)}
                     </div>
                     <div className="text-[10px] text-emerald-300 mt-2 font-bold uppercase">
-                      {timerMode === 'countdown' ? '完成倒计时将自动为关联任务 +1h 经验' : '记录专注时长'}
+                      {timerMode === 'countdown' ? '切后台/锁屏会自动计算真实流逝时间' : '后台挂起正计时计算中'}
                     </div>
                   </div>
 
@@ -724,7 +758,6 @@ export default function App() {
           )}
         </div>
 
-        {/* 底部主导航栏 (固定在绝对底部) */}
         <nav className="absolute bottom-0 left-0 right-0 bg-[#0f2d18]/95 backdrop-blur border-t-4 border-[#226e3e] px-8 py-3 flex justify-around items-center z-10">
           <button 
             onClick={() => { setMainTab('home'); setActiveGoalId(null); setIsEditingTitle(false); }}
@@ -734,7 +767,6 @@ export default function App() {
             <span className="text-[9px] font-bold">HOME</span>
           </button>
 
-          {/* 新建关卡按钮 */}
           <button 
             onClick={() => setIsModalOpen(true)}
             className="w-12 h-12 bg-gradient-to-tr from-[#ca8a04] to-[#ffd700] hover:from-[#b45309] hover:to-[#eab308] text-[#081c10] rounded-full shadow-lg flex items-center justify-center -mt-6 transition-transform hover:scale-105 border-4 border-[#0f2d18] font-black text-xl"
@@ -751,7 +783,6 @@ export default function App() {
           </button>
         </nav>
 
-        {/* 新建挑战弹窗 */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="bg-[#0f2d18] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl border-2 border-[#226e3e] animate-slideUp">
